@@ -55,8 +55,11 @@ jobs:
       - name: Build
         run: dotnet build -c ${{ matrix.configuration }} --no-restore
 
-      - name: Test
-        run: dotnet test -c ${{ matrix.configuration }} --no-build --verbosity normal
+      - name: Test (Maple.Native.Test)
+        run: dotnet run --project src/Maple.Native.Test/Maple.Native.Test.csproj -c ${{ matrix.configuration }} --no-build -- --no-ansi
+
+      - name: Test (Maple.Native.DocTest)
+        run: dotnet run --project src/Maple.Native.DocTest/Maple.Native.DocTest.csproj -c ${{ matrix.configuration }} --no-build -- --no-ansi
 
   coverage:
     runs-on: ubuntu-latest

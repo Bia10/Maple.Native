@@ -31,9 +31,27 @@ public partial class ReadMeTest
     [Test]
     public void ReadMeTest_()
     {
-        // REPLACE THIS with actual example calls to your library.
-        // This exact method body will appear in the README "## Example" section.
-        Native.Empty();
+        // Allocate a synthetic x86 address space for testing native types out-of-process.
+        using var allocator = new InProcessAllocator();
+
+        // Allocate a ZXString (ANSI ref-counted string) and read it back.
+        var strAddr = ZXString.Create(allocator, "MapleStory");
+        var alloc = ZXString.Allocate(allocator, "MapleStory");
+        ZXString.Destroy(allocator, strAddr);
+        ZXString.Destroy(allocator, alloc.ObjectAddress);
+
+        // Allocate a wide (UTF-16) string.
+        var wideAddr = ZXStringWide.Create(allocator, "메이플스토리");
+        ZXStringWide.Destroy(allocator, wideAddr);
+
+        // Spin-lock round-trip: acquire the StringPool lock, then release.
+        var pool = NativeStringPool.AllocateEmpty(allocator, slotCount: 4);
+        using (NativeStringPoolLock.Acquire(allocator, pool.ObjectAddress, maxSpinCount: 100))
+        {
+            var locked = NativeStringPoolLock.Read(allocator, pool.ObjectAddress);
+            _ = locked.TibPointer; // non-zero while held
+        }
+        NativeStringPool.Destroy(allocator, pool, destroyNarrowStrings: false, destroyWideStrings: false);
     }
 
     // ─────────────────────────────────────────────────────────────
