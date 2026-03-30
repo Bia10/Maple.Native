@@ -1,4 +1,4 @@
-namespace Maple.Native.Test;
+﻿namespace Maple.Native.Test;
 
 public class NativePtrTests
 {
@@ -84,5 +84,100 @@ public class NativePtrTests
 
         await Assert.That(section.TibPointer).IsEqualTo(0xABCDu);
         await Assert.That(section.RefCount).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task TryRead_Success()
+    {
+        var imageBase = 0x00400000u;
+        var imageBytes = new byte[0x100];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(imageBytes.AsSpan(0x20), 0x5555u);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(imageBytes.AsSpan(0x24), 4);
+
+        var view = new NativeImageView(imageBytes, imageBase);
+        NativePtr<ZFatalSection> ptr = imageBase + 0x20u;
+        var ok = ptr.TryRead(view, (img, off) => NativeCast.Reinterpret<ZFatalSection>(img, off), out var section);
+
+        await Assert.That(ok).IsTrue();
+        await Assert.That(section.TibPointer).IsEqualTo(0x5555u);
+    }
+
+    [Test]
+    public async Task TryRead_OutOfBounds_ReturnsFalse()
+    {
+        var view = new NativeImageView(new byte[0x100], 0x00400000u);
+        NativePtr<ZFatalSection> ptr = 0x00500000u;
+
+        var ok = ptr.TryRead(view, (img, off) => NativeCast.Reinterpret<ZFatalSection>(img, off), out _);
+
+        await Assert.That(ok).IsFalse();
+    }
+
+    [Test]
+    public async Task TryRead_NullPtr_ReturnsFalse()
+    {
+        var view = new NativeImageView(new byte[0x100], 0x00400000u);
+        NativePtr<ZFatalSection> ptr = 0u;
+
+        var ok = ptr.TryRead(view, (img, off) => NativeCast.Reinterpret<ZFatalSection>(img, off), out _);
+
+        await Assert.That(ok).IsFalse();
+    }
+
+    [Test]
+    public async Task ToString_Null_ReturnsNullptr()
+    {
+        NativePtr<ZFatalSection> ptr = 0u;
+
+        await Assert.That(ptr.ToString()).IsEqualTo("nullptr");
+    }
+
+    [Test]
+    public async Task ToString_NonNull_ReturnsHexAddress()
+    {
+        NativePtr<ZFatalSection> ptr = 0x00401000u;
+
+        await Assert.That(ptr.ToString()).IsEqualTo("0x00401000");
+    }
+
+    [Test]
+    public async Task Equals_BoxedSameAddress_IsEqual()
+    {
+        NativePtr<ZFatalSection> ptr = 0x1234u;
+        object boxed = (NativePtr<ZFatalSection>)0x1234u;
+
+        await Assert.That(ptr.Equals(boxed)).IsTrue();
+    }
+
+    [Test]
+    public async Task Equals_BoxedDifferentType_IsFalse()
+    {
+        NativePtr<ZFatalSection> ptr = 0x1234u;
+
+        await Assert.That(ptr.Equals("not a pointer")).IsFalse();
+    }
+
+    [Test]
+    public async Task GetHashCode_SameAddress_SameHash()
+    {
+        NativePtr<ZFatalSection> a = 0x5678u;
+        NativePtr<ZFatalSection> b = 0x5678u;
+
+        await Assert.That(a.GetHashCode()).IsEqualTo(b.GetHashCode());
+    }
+
+    [Test]
+    public async Task Reinterpret_CallsConverterWithAddress()
+    {
+        NativePtr<ZFatalSection> ptr = 0x00401000u;
+        nint capturedArg = 0;
+
+        ptr.Reinterpret(p =>
+        {
+            capturedArg = p;
+            return ZFatalSection.Unlocked;
+        });
+
+        await Assert.That((uint)capturedArg).IsEqualTo(0x00401000u);
     }
 }

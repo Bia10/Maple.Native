@@ -7,7 +7,7 @@
 [![Nuget](https://img.shields.io/nuget/v/Maple.Native?color=purple)](https://www.nuget.org/packages/Maple.Native/)
 [![License](https://img.shields.io/github/license/Bia10/Maple.Native)](https://github.com/Bia10/Maple.Native/blob/main/LICENSE)
 
-MapleStory GMS v95 native type layouts and runtime mutation primitives: ZArray, ZXString, ZFatalSection, StringPool lock helpers, and x86 allocator contracts. Foundation layer for maple-memory and maple-client-v95. Cross-platform, trimmable and AOT/NativeAOT compatible.
+MapleStory GMS v95 native type layouts and runtime mutation primitives: ZArray, ZXString, ZFatalSection, StringPool lock helpers, and x86 allocator contracts. Foundation layer for [Maple.Memory](https://github.com/Bia10/Maple.Memory) and [Maple.Client.V95](https://github.com/Bia10/Maple.Client.V95). Cross-platform, trimmable and AOT/NativeAOT compatible.
 
 ⭐ Please star this project if you like it. ⭐
 

@@ -1,4 +1,4 @@
-namespace Maple.Native.Test;
+﻿namespace Maple.Native.Test;
 
 public class ZXStringTests
 {
@@ -90,5 +90,112 @@ public class ZXStringTests
         await Assert.That(addr).IsNotEqualTo(0u);
 
         ZXString.Destroy(allocator, addr);
+    }
+
+    [Test]
+    public async Task ReadFrom_NegativeByteLength_Throws()
+    {
+        var image = new byte[32];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(0), 1); // nRef
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(4), 5); // nCap
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(8), -1); // nByteLen negative
+
+        await Assert.That(() => ZXString.ReadFrom(image, 12)).Throws<System.IO.InvalidDataException>();
+    }
+
+    [Test]
+    public async Task ReadFrom_PayloadExceedsSpan_Throws()
+    {
+        var image = new byte[14]; // header=12, only 2 extra bytes
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(0), 1); // nRef
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(4), 10); // nCap
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(image.AsSpan(8), 10); // nByteLen > remaining
+
+        await Assert.That(() => ZXString.ReadFrom(image, 12)).Throws<System.IO.InvalidDataException>();
+    }
+
+    [Test]
+    public async Task Allocate_LargeString_PooledPath()
+    {
+        using var allocator = new InProcessAllocator();
+
+        // 257 chars > StackBufferBytes (256) → pooled path
+        var value = new string('A', 257);
+        var alloc = ZXString.Allocate(allocator, value);
+
+        await Assert.That(alloc.ObjectAddress).IsNotEqualTo(0u);
+        await Assert.That(alloc.ByteLength).IsEqualTo(257);
+
+        ZXString.Destroy(allocator, alloc.ObjectAddress);
+    }
+
+    [Test]
+    public async Task Allocate_BytePayload_StackPath()
+    {
+        using var allocator = new InProcessAllocator();
+
+        byte[] payload = [0x41, 0x42, 0x43]; // "ABC"
+        var alloc = ZXString.Allocate(allocator, payload);
+
+        await Assert.That(alloc.ObjectAddress).IsNotEqualTo(0u);
+        await Assert.That(alloc.ByteLength).IsEqualTo(3);
+
+        ZXString.Destroy(allocator, alloc.ObjectAddress);
+    }
+
+    [Test]
+    public async Task Allocate_BytePayload_PooledPath()
+    {
+        using var allocator = new InProcessAllocator();
+
+        // 257 bytes > StackBufferBytes (256) → pooled path
+        var payload = new byte[257];
+        for (int i = 0; i < payload.Length; i++)
+            payload[i] = (byte)('A' + (i % 26));
+
+        var alloc = ZXString.Allocate(allocator, payload);
+
+        await Assert.That(alloc.ObjectAddress).IsNotEqualTo(0u);
+        await Assert.That(alloc.ByteLength).IsEqualTo(257);
+
+        ZXString.Destroy(allocator, alloc.ObjectAddress);
+    }
+
+    [Test]
+    public async Task Create_BytePayload_ReturnsNonZeroAddress()
+    {
+        using var allocator = new InProcessAllocator();
+
+        var addr = ZXString.Create(allocator, new byte[] { 0x58, 0x59 });
+
+        await Assert.That(addr).IsNotEqualTo(0u);
+
+        ZXString.Destroy(allocator, addr);
+    }
+
+    [Test]
+    public async Task WriteLatin1Payload_NonByteChar_Throws()
+    {
+        using var allocator = new InProcessAllocator();
+
+        // 'あ' > 255 → WriteLatin1Payload throws ArgumentException
+        await Assert.That(() => ZXString.Allocate(allocator, "あ")).Throws<ArgumentException>();
+    }
+
+    [Test]
+    public async Task ToString_ReturnsValue()
+    {
+        var s = new ZXString("native");
+
+        await Assert.That(s.ToString()).IsEqualTo("native");
+    }
+
+    [Test]
+    public async Task ImplicitStringConversion_ReturnsValue()
+    {
+        var s = new ZXString("maple");
+        string converted = s;
+
+        await Assert.That(converted).IsEqualTo("maple");
     }
 }

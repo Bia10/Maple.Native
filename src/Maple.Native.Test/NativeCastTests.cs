@@ -1,4 +1,4 @@
-namespace Maple.Native.Test;
+﻿namespace Maple.Native.Test;
 
 public class NativeCastTests
 {
@@ -79,5 +79,109 @@ public class NativeCastTests
         );
 
         await Assert.That(result).IsNull();
+    }
+
+    [Test]
+    public async Task TryCast_InBounds_ReturnsTrue()
+    {
+        var bytes = new byte[16];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0), 0xDEADu);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(4), 2);
+
+        var ok = NativeCast.TryCast<ZFatalSection>(
+            bytes,
+            0,
+            (img, off) => NativeCast.Reinterpret<ZFatalSection>(img, off),
+            out var result
+        );
+
+        await Assert.That(ok).IsTrue();
+        await Assert.That(result.TibPointer).IsEqualTo(0xDEADu);
+    }
+
+    [Test]
+    public async Task TryCast_NegativeOffset_ReturnsFalse()
+    {
+        var bytes = new byte[8];
+
+        var ok = NativeCast.TryCast<ZFatalSection>(
+            bytes,
+            -1,
+            (img, off) => NativeCast.Reinterpret<ZFatalSection>(img, off),
+            out _
+        );
+
+        await Assert.That(ok).IsFalse();
+    }
+
+    [Test]
+    public async Task TryCast_OffsetPastEnd_ReturnsFalse()
+    {
+        var bytes = new byte[8];
+
+        var ok = NativeCast.TryCast<ZFatalSection>(
+            bytes,
+            8,
+            (img, off) => NativeCast.Reinterpret<ZFatalSection>(img, off),
+            out _
+        );
+
+        await Assert.That(ok).IsFalse();
+    }
+
+    [Test]
+    public async Task Is_NegativeOffset_ReturnsFalse()
+    {
+        var bytes = new byte[16];
+
+        await Assert.That(NativeCast.Is<ZFatalSection>(bytes, -1)).IsFalse();
+    }
+
+    [Test]
+    public async Task SafeRead_ZeroPointer_ReturnsFalseWithDefault()
+    {
+        bool ok;
+        int result;
+        unsafe
+        {
+            ok = NativeCast.SafeRead<int>((nint)0, out result);
+        }
+
+        await Assert.That(ok).IsFalse();
+        await Assert.That(result).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task SafeRead_ValidPointer_ReturnsTrue()
+    {
+        bool ok;
+        int result = 0;
+        unsafe
+        {
+            int[] arr = new int[] { 42 };
+            fixed (int* p = arr)
+            {
+                ok = NativeCast.SafeRead<int>((nint)p, out result);
+            }
+        }
+
+        await Assert.That(ok).IsTrue();
+        await Assert.That(result).IsEqualTo(42);
+    }
+
+    [Test]
+    public async Task Reinterpret_InProcess_ReadsValue()
+    {
+        int result;
+        unsafe
+        {
+            int[] arr = new int[] { 0x12345678 };
+            fixed (int* p = arr)
+            {
+                result = NativeCast.Reinterpret<int>((nint)p);
+            }
+        }
+
+        await Assert.That(result).IsEqualTo(0x12345678);
     }
 }
